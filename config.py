@@ -11,3 +11,6 @@ DEBUG = True
 
 # IMPLEMENT DATABASE URL
 SQLALCHEMY_DATABASE_URI = 'postgresql://lunatic:1q2w3e4r@localhost:5432/fyyur'
+
+
+SQLALCHEMY_TRACK_MODIFICATIONS = False
