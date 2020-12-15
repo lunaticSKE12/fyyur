@@ -117,23 +117,23 @@ def show_venue(venue_id):
 
     venue = Venue.query.filter_by(id=venue_id).first_or_404()
 
-    shows = venue.shows
-    past_shows = []
-    upcoming_shows = []
+    # shows = venue.shows
+    # past_shows = []
+    # upcoming_shows = []
 
-    for show in shows:
-        artist = db.session.query(Artist.name, Artist.image_link).filter(
-            Artist.id == show.artist_id).one()
-        show_detail = {
-            "artist_id": show.artist_id,
-            "artist_name": artist.name,
-            "artist_image_link": artist.image_link,
-            "start_time": show.start_time.strftime('%m/%d/%Y')
-        }
-        if(show.upcoming):
-            upcoming_shows.append(show_detail)
-        else:
-            past_shows.append(show_detail)
+    # for show in shows:
+    #     artist = db.session.query(Artist.name, Artist.image_link).filter(
+    #         Artist.id == show.artist_id).one()
+    #     show_detail = {
+    #         "artist_id": show.artist_id,
+    #         "artist_name": artist.name,
+    #         "artist_image_link": artist.image_link,
+    #         "start_time": show.start_time.strftime('%m/%d/%Y')
+    #     }
+    #     if(show.upcoming):
+    #         upcoming_shows.append(show_detail)
+    #     else:
+    #         past_shows.append(show_detail)
 
     data = {
         "id": venue.id,
