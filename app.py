@@ -15,81 +15,14 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
-#----------------------------------------------------------------------------#
-# App Config.
-#----------------------------------------------------------------------------#
+from models import app, db, Venue, Artist, Show
+from datetime import datetime
 
-app = Flask(__name__)
-moment = Moment(app)
+
 app.config.from_object('config')
-db = SQLAlchemy(app)
+moment = Moment(app)
+db.init_app(app)
 
-# connect to a local postgresql database
-migration = Migrate(app, db)
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-
-class Venue(db.Model):
-    __tablename__ = 'Venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-
-    # implement any missing fields, as a database migration using Flask-Migrate
-    genres = db.Column(db.String(120), nullable=False)
-    website = db.Column(db.String(120))
-    seeking_talent = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.Text)
-    upcoming_shows_count = db.Column(db.Integer, default=0)
-    past_shows_count = db.Column(db.Integer, default=0)
-    shows = db.relationship('Show', backref='venue', lazy=True,
-                            cascade="save-update, merge, delete")
-
-
-class Artist(db.Model):
-    __tablename__ = 'Artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-
-    # implement any missing fields, as a database migration using Flask-Migrate
-    website = db.Column(db.String(120))
-    seeking_venue = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.Text)
-    upcoming_shows_count = db.Column(db.Integer, default=0)
-    past_shows_count = db.Column(db.Integer, default=0)
-    shows = db.relationship('Show', backref='artist', lazy=True,
-                            cascade="save-update, merge, delete")
-
-
-#  Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
-
-
-class Show(db.Model):
-    __tablename__ = 'Shows'
-    id = db.Column(db.Integer, primary_key=True)
-    start_time = db.Column(db.DateTime, nullable=False)
-    artist_id = db.Column(db.Integer, db.ForeignKey(
-        'Artist.id'), nullable=False)
-    venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
-    upcoming = db.Column(db.Boolean, nullable=False, default=True)
-
-
-db.create_all()
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -170,7 +103,19 @@ def search_venues():
 def show_venue(venue_id):
     # shows the venue page with the given venue_id
     # replace with real venue data from the venues table, using venue_id
-    venue = Venue.query.get(venue_id)
+    past_shows = db.session.query(Artist, Show).join(Show).join(Venue).filter(
+        Show.venue_id == venue_id,
+        Show.artist_id == Artist.id,
+        Show.start_time < datetime.now()
+    ).all()
+
+    upcoming_shows = db.session.query(Artist, Show).join(Show).join(Venue).filter(
+        Show.venue_id == venue_id,
+        Show.artist_id == Artist.id,
+        Show.start_time > datetime.now()
+    ).all()
+
+    venue = Venue.query.filter_by(id=venue_id).first_or_404()
 
     shows = venue.shows
     past_shows = []
@@ -205,8 +150,20 @@ def show_venue(venue_id):
         "image_link": venue.image_link,
         "past_shows": past_shows,
         "upcoming_shows": upcoming_shows,
-        "past_shows_count": len(past_shows),
-        "upcoming_shows_count": len(upcoming_shows),
+        'past_shows': [{
+            'artist_id': artist.id,
+            "artist_name": artist.name,
+            "artist_image_link": artist.image_link,
+            "start_time": show.start_time.strftime("%m/%d/%Y, %H:%M")
+        } for artist, show in past_shows],
+        'upcoming_shows': [{
+            'artist_id': artist.id,
+            'artist_name': artist.name,
+            'artist_image_link': artist.image_link,
+            'start_time': show.start_time.strftime("%m/%d/%Y, %H:%M")
+        } for artist, show in upcoming_shows],
+        'past_shows_count': len(past_shows),
+        'upcoming_shows_count': len(upcoming_shows)
     }
 
     return render_template('pages/show_venue.html', venue=data)
@@ -227,7 +184,7 @@ def create_venue_submission():
     #  modify data to be the data object returned from db insertion
     form = VenueForm(request.form)
 
-    new_venue = Venue(
+    venue = Venue(
         name=form.name.data,
         city=form.city.data,
         state=form.state.data,
@@ -238,8 +195,10 @@ def create_venue_submission():
         website=form.website.data,
         image_link=form.image_link.data,
     )
+
     try:
-        db.session.add(new_venue)
+        form.populate_obj(venue)
+        db.session.add(venue)
         db.session.commit()
     # on successful db insert, flash success
         flash('Venue ' + request.form['name'] + ' was successfully listed!')
@@ -268,7 +227,7 @@ def delete_venue(venue_id):
     finally:
         db.session.close()
 
-    # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
+    # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that£™¡`
     # clicking that button delete it from the db then redirect the user to the homepage
     return redirect(url_for('index'))
 
@@ -523,7 +482,7 @@ def create_show_submission():
     form = ShowForm(request.form)
     show = Show(
         venue_id=form.venue_id.data,
-        artists_id=form.artist_id.data,
+        artist_id=form.artist_id.data,
         start_time=form.start_time.data
     )
 
